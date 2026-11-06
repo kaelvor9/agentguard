@@ -1,0 +1,6 @@
+INVOICE #1005
+From: API Shop (api-shop.kaelvor.testnet)
+Description: Webhook add-on, November
+Pay to: api-shop.kaelvor.testnet
+Amount: 0.5 NEAR
+Due: Nov 20, 2026

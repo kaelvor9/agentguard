@@ -1,0 +1,6 @@
+INVOICE #1002
+From: Hosting Co (hosting.kaelvor.testnet)
+Description: Dedicated server hosting, Q4 2026
+Pay to: hosting.kaelvor.testnet
+Amount: 4 NEAR
+Due: Nov 30, 2026

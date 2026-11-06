@@ -1,0 +1,25 @@
+{
+  "name": "agentguard-offchain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AgentGuard agent, guardian and owner tools",
+  "scripts": {
+    "agent": "tsx src/agent.ts",
+    "guardian": "tsx src/guardian.ts",
+    "status": "tsx src/status.ts",
+    "owner": "tsx src/owner.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "dotenv": "18.0.9",
+    "near-api-js": "7.4.0",
+    "openai": "5.23.2"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  }
+}

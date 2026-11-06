@@ -1,0 +1,6 @@
+INVOICE #1001
+From: API Shop (api-shop.kaelvor.testnet)
+Description: Monthly API credits, October usage
+Pay to: api-shop.kaelvor.testnet
+Amount: 1 NEAR
+Due: Nov 15, 2026

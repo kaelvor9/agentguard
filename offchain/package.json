@@ -10,7 +10,8 @@
     "status": "tsx src/status.ts",
     "owner": "tsx src/owner.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "dashboard": "tsx src/dashboard.ts"
   },
   "dependencies": {
     "dotenv": "18.0.9",

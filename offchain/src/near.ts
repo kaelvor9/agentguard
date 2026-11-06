@@ -1,5 +1,7 @@
 // Shared NEAR helpers: config, keys, view calls and signed calls.
 import "dotenv/config";
+import { setDefaultResultOrder } from "node:dns";
+import { setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -14,6 +16,11 @@ import {
   yoctoToNear,
 } from "near-api-js";
 
+// WSL fix: Node gives each IPv6/IPv4 connection attempt only 250ms, which times out
+// on slower links ("internalConnectMultiple ETIMEDOUT"). Prefer IPv4 and allow 2s.
+setDefaultResultOrder("ipv4first");
+setDefaultAutoSelectFamilyAttemptTimeout(2_000);
+
 export const config = {
   vault: process.env.VAULT ?? "vault.kaelvor.testnet",
   agent: process.env.AGENT ?? "agent.kaelvor.testnet",
@@ -22,7 +29,7 @@ export const config = {
   // Several free endpoints: if one rate-limits us, the next one is tried.
   rpcUrls: (
     process.env.RPC_URLS ??
-    "https://test.rpc.fastnear.com,https://rpc.testnet.near.org,https://archival-rpc.testnet.fastnear.com"
+    "https://test.rpc.fastnear.com,https://archival-rpc.testnet.fastnear.com,https://rpc.testnet.near.org"
   )
     .split(",")
     .map((u) => u.trim())

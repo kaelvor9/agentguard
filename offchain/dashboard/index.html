@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentGuard Console</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #14171c; --muted: #5f6672; --line: #e3e6eb;
+    --accent: #2f5bd3; --good: #1f8a4c; --good-bg: #e6f4ec; --warn: #a96500; --warn-bg: #fdf1dc;
+    --bad: #c23a3a; --bad-bg: #fbe7e7; --info: #2f5bd3; --info-bg: #e7edfb; --idle-bg: #eef0f3;
+    --on-good: #ffffff; --radius: 10px; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --panel: #171b21; --ink: #e8ebf0; --muted: #98a0ad; --line: #272d36;
+      --accent: #7d9cf2; --good: #5cc98b; --good-bg: #13291d; --warn: #e3a64a; --warn-bg: #2e2310;
+      --bad: #ef7a7a; --bad-bg: #331818; --info: #7d9cf2; --info-bg: #182240; --idle-bg: #20252d; --on-good: #0b1a12;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 20px; }
+  .brand svg { width: 28px; height: 28px; color: var(--accent); }
+  .vault { color: var(--muted); font-family: var(--mono); font-size: 13px; }
+  .spacer { flex: 1; }
+  .badge { white-space: nowrap; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+  button { font: inherit; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 14px; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button:disabled { opacity: .5; cursor: wait; }
+  button.primary { background: var(--good); border-color: var(--good); color: var(--on-good); font-weight: 600; }
+  button.danger { color: var(--bad); border-color: var(--bad); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  .big { font-size: 24px; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .bar { height: 6px; background: var(--idle-bg); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: var(--accent); }
+  .policy { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .policy b { color: var(--ink); font-weight: 600; }
+  h2 { font-size: 16px; margin: 28px 0 10px; display: flex; align-items: center; gap: 8px; }
+  .count { background: var(--warn-bg); color: var(--warn); border-radius: 999px; font-size: 12px; padding: 1px 8px; }
+  .queue { display: grid; gap: 10px; }
+  .hold { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; border-left: 3px solid var(--warn); }
+  .hold .amt { font-size: 18px; font-weight: 650; }
+  .hold .why { color: var(--muted); font-size: 13px; }
+  .actions { display: flex; gap: 8px; }
+  .empty { color: var(--muted); font-size: 14px; padding: 14px 16px; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 14px; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: 0; }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .acct { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
+  .tablewrap { overflow-x: auto; border-radius: var(--radius); }
+  .tag { font-size: 11px; color: var(--good); margin-left: 4px; }
+  .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .risk { display: flex; align-items: center; gap: 8px; min-width: 110px; }
+  .risk .bar { flex: 1; margin: 0; }
+  .s-Executed { background: var(--good-bg); color: var(--good); }
+  .s-NeedsApproval { background: var(--warn-bg); color: var(--warn); }
+  .s-Rejected { background: var(--bad-bg); color: var(--bad); }
+  .s-PendingRisk { background: var(--info-bg); color: var(--info); }
+  .s-Expired, .s-Paused { background: var(--idle-bg); color: var(--muted); }
+  .s-Active { background: var(--good-bg); color: var(--good); }
+  .s-Paused { background: var(--bad-bg); color: var(--bad); }
+  footer { margin-top: 28px; color: var(--muted); font-size: 13px; display: flex; gap: 16px; flex-wrap: wrap; }
+  footer a, .toast a { color: var(--accent); }
+  .toast { position: fixed; bottom: 16px; right: 16px; left: 16px; max-width: 420px; margin-left: auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; box-shadow: 0 6px 24px rgba(0,0,0,.15); display: none; }
+  .toast.err { border-color: var(--bad); }
+  @media (max-width: 720px) {
+    .hide-sm { display: none; }
+    .hold { grid-template-columns: 1fr; }
+    .hold .acct { white-space: normal; word-break: break-all; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z"/><path d="m8.5 12 2.5 2.5 4.5-5" stroke-linecap="round"/></svg>
+      AgentGuard
+    </div>
+    <span class="vault" id="vault">connecting...</span>
+    <span class="badge" id="state"></span>
+    <span class="spacer"></span>
+    <button id="pauseBtn" class="danger" hidden>Pause vault</button>
+  </header>
+
+  <section class="grid">
+    <div class="card">
+      <div class="label">Spent today</div>
+      <div class="big" id="spent">-</div>
+      <div class="bar"><span id="spentBar" style="width:0"></span></div>
+    </div>
+    <div class="card">
+      <div class="label">Remaining today</div>
+      <div class="big" id="remaining">-</div>
+      <div class="sub" id="dailyLimit"></div>
+    </div>
+    <div class="card">
+      <div class="label">Vault balance</div>
+      <div class="big" id="balance">-</div>
+      <div class="sub">available to pay out</div>
+    </div>
+    <div class="card">
+      <div class="label">Policy (enforced on-chain)</div>
+      <div class="policy" id="policy"></div>
+    </div>
+  </section>
+
+  <h2>Needs your approval <span class="count" id="holdCount" hidden></span></h2>
+  <div class="queue" id="queue"></div>
+
+  <h2>Activity</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>#</th><th>Status</th><th>Amount</th><th>Payee</th><th>Risk</th><th class="hide-sm">Decision</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+  </table></div>
+
+  <footer>
+    <span id="roles"></span>
+    <span id="updated"></span>
+    <a id="explorer" target="_blank" rel="noopener">View vault on explorer</a>
+  </footer>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const YOCTO = 10n ** 24n;
+let data = null;
+
+function near(yocto) {
+  const v = BigInt(yocto);
+  const whole = v / YOCTO;
+  const frac = ((v % YOCTO) * 10000n) / YOCTO;
+  const f = frac.toString().padStart(4, "0").replace(/0+$/, "");
+  return f ? `${whole}.${f}` : `${whole}`;
+}
+const pct = (a, b) => (BigInt(b) === 0n ? 0 : Math.min(100, Number((BigInt(a) * 100n) / BigInt(b))));
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const when = (ns) => new Date(Number(BigInt(ns) / 1000000n)).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const label = { NeedsApproval: "Needs approval", PendingRisk: "Scoring" };
+
+function riskCell(score, policy) {
+  if (score === null || score === undefined) return '<span class="sub">-</span>';
+  const color = score >= policy.risk_block ? "var(--bad)" : score >= policy.risk_hold ? "var(--warn)" : "var(--good)";
+  return `<div class="risk"><span class="num">${score}</span><div class="bar"><span style="width:${score}%;background:${color}"></span></div></div>`;
+}
+
+function render() {
+  const { config: cfg, spending, requests, payees, vault } = data;
+  const p = cfg.policy;
+  const known = new Map(payees);
+  $("vault").textContent = vault;
+  $("state").textContent = cfg.paused ? "PAUSED" : "Active";
+  $("state").className = "badge " + (cfg.paused ? "s-Paused" : "s-Active");
+  const btn = $("pauseBtn");
+  btn.hidden = false;
+  btn.textContent = cfg.paused ? "Resume vault" : "Pause vault";
+  btn.className = cfg.paused ? "primary" : "danger";
+  btn.onclick = () => act(cfg.paused ? "unpause" : "pause", null, btn);
+
+  $("spent").textContent = `${near(spending.spent_today)} NEAR`;
+  $("spentBar").style.width = pct(spending.spent_today, p.daily_limit) + "%";
+  $("remaining").textContent = `${near(spending.remaining_today)} NEAR`;
+  $("dailyLimit").textContent = `of ${near(p.daily_limit)} NEAR daily limit`;
+  $("balance").textContent = `${near(spending.available_balance)} NEAR`;
+  $("policy").innerHTML =
+    `Max <b>${near(p.per_tx_limit)}</b> per payment<br>Approval above <b>${near(p.approval_threshold)}</b><br>` +
+    `Hold at risk <b>${p.risk_hold}</b>, block at <b>${p.risk_block}</b>`;
+
+  const held = requests.filter((r) => r.status === "NeedsApproval");
+  $("holdCount").hidden = held.length === 0;
+  $("holdCount").textContent = held.length;
+  $("queue").innerHTML = held.length
+    ? held.map((r) => `
+      <div class="card hold">
+        <div>
+          <div class="amt">${near(r.amount)} NEAR <span class="acct">to ${esc(r.to)}</span>${known.has(r.to) ? `<span class="tag">${esc(known.get(r.to))}</span>` : ""}</div>
+          <div class="why">Held because: ${esc(r.decision)} &middot; risk ${r.risk_score ?? "-"}</div>
+          <div class="sub">${esc(r.memo).slice(0, 160)}</div>
+          ${r.risk_reason ? `<div class="sub">Guardian: ${esc(r.risk_reason)}</div>` : ""}
+        </div>
+        <div class="actions">
+          <button class="primary" data-act="approve" data-id="${r.id}">Approve</button>
+          <button class="danger" data-act="reject" data-id="${r.id}">Reject</button>
+        </div>
+      </div>`).join("")
+    : '<div class="card empty">Nothing waiting. Payments above the threshold or flagged by the guardian will appear here.</div>';
+
+  $("rows").innerHTML = requests.length
+    ? requests.map((r) => `
+      <tr>
+        <td class="num">${r.id}<div class="sub">${when(r.created_at)}</div></td>
+        <td><span class="badge s-${r.status}">${label[r.status] ?? r.status}</span></td>
+        <td class="num">${near(r.amount)} NEAR</td>
+        <td><span class="acct">${esc(r.to)}</span>${known.has(r.to) ? `<div class="tag">${esc(known.get(r.to))}</div>` : '<div class="sub">not allowlisted</div>'}</td>
+        <td>${riskCell(r.risk_score, p)}</td>
+        <td class="hide-sm">${esc(r.decision ?? "awaiting guardian")}${r.risk_reason ? `<div class="sub">Guardian: ${esc(r.risk_reason)}</div>` : ""}</td>
+      </tr>`).join("")
+    : '<tr><td colspan="6" class="empty">No payment requests yet.</td></tr>';
+
+  $("roles").textContent = `Owner ${cfg.owner} · Agent ${cfg.agent} · Guardian ${cfg.guardian}`;
+  $("updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  $("explorer").href = `https://testnet.nearblocks.io/address/${vault}`;
+}
+
+function toast(html, err) {
+  const t = $("toast");
+  t.innerHTML = html;
+  t.className = "toast" + (err ? " err" : "");
+  t.style.display = "block";
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => (t.style.display = "none"), 8000);
+}
+
+async function load() {
+  try {
+    const res = await fetch("/api/state");
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error);
+    data = body;
+    render();
+  } catch (e) {
+    $("updated").textContent = `Refresh failed (${e.message.slice(0, 80)}), retrying...`;
+  }
+}
+
+async function act(action, id, button) {
+  if (action === "approve" && !confirm(`Approve request #${id}? The vault will pay it now.`)) return;
+  if (action === "pause" && !confirm("Pause the vault? Every new and pending payment will be rejected until you resume.")) return;
+  document.querySelectorAll("button").forEach((b) => (b.disabled = true));
+  try {
+    const res = await fetch(`/api/${action}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-agentguard": "1" },
+      body: JSON.stringify(id === null ? {} : { id }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error);
+    toast(`${action} ${id !== null ? "#" + id : ""} confirmed on-chain. <a href="${body.tx}" target="_blank" rel="noopener">View transaction</a>`);
+    await load();
+  } catch (e) {
+    toast(`${action} failed: ${esc(e.message)}`, true);
+  } finally {
+    document.querySelectorAll("button").forEach((b) => (b.disabled = false));
+  }
+}
+
+$("queue").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-act]");
+  if (b) act(b.dataset.act, b.dataset.id, b);
+});
+
+load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>

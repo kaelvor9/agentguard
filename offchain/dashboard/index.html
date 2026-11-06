@@ -12,12 +12,13 @@
     --on-good: #ffffff; --radius: 10px; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0f1216; --panel: #171b21; --ink: #e8ebf0; --muted: #98a0ad; --line: #272d36;
+    :root:not([data-theme="light"]) { --bg: #0f1216; --panel: #171b21; --ink: #e8ebf0; --muted: #98a0ad; --line: #272d36;
       --accent: #7d9cf2; --good: #5cc98b; --good-bg: #13291d; --warn: #e3a64a; --warn-bg: #2e2310;
-      --bad: #ef7a7a; --bad-bg: #331818; --info: #7d9cf2; --info-bg: #182240; --idle-bg: #20252d; --on-good: #0b1a12;
-    }
+      --bad: #ef7a7a; --bad-bg: #331818; --info: #7d9cf2; --info-bg: #182240; --idle-bg: #20252d; --on-good: #0b1a12; }
   }
+  :root[data-theme="dark"] { --bg: #0f1216; --panel: #171b21; --ink: #e8ebf0; --muted: #98a0ad; --line: #272d36;
+      --accent: #7d9cf2; --good: #5cc98b; --good-bg: #13291d; --warn: #e3a64a; --warn-bg: #2e2310;
+      --bad: #ef7a7a; --bad-bg: #331818; --info: #7d9cf2; --info-bg: #182240; --idle-bg: #20252d; --on-good: #0b1a12; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
@@ -66,6 +67,14 @@
   .s-Expired, .s-Paused { background: var(--idle-bg); color: var(--muted); }
   .s-Active { background: var(--good-bg); color: var(--good); }
   .s-Paused { background: var(--bad-bg); color: var(--bad); }
+  .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .keyrow { display: flex; gap: 10px; align-items: flex-start; margin-top: 8px; font-size: 13px; }
+  .keyrow svg { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+  .ok { color: var(--good); } .no { color: var(--bad); }
+  .pk { font-family: var(--mono); font-size: 12px; color: var(--muted); word-break: break-all; }
+  code { font-family: var(--mono); font-size: 12px; background: var(--idle-bg); padding: 1px 5px; border-radius: 4px; }
+  #themeBtn { padding: 7px 10px; }
+  .acct .badge { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin-left: 6px; }
   footer { margin-top: 28px; color: var(--muted); font-size: 13px; display: flex; gap: 16px; flex-wrap: wrap; }
   footer a, .toast a { color: var(--accent); }
   .toast { position: fixed; bottom: 16px; right: 16px; left: 16px; max-width: 420px; margin-left: auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; box-shadow: 0 6px 24px rgba(0,0,0,.15); display: none; }
@@ -87,6 +96,7 @@
     <span class="vault" id="vault">connecting...</span>
     <span class="badge" id="state"></span>
     <span class="spacer"></span>
+    <button id="themeBtn" title="Switch theme" aria-label="Switch theme"></button>
     <button id="pauseBtn" class="danger" hidden>Pause vault</button>
   </header>
 
@@ -120,6 +130,9 @@
     <thead><tr><th>#</th><th>Status</th><th>Amount</th><th>Payee</th><th>Risk</th><th class="hide-sm">Decision</th></tr></thead>
     <tbody id="rows"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
   </table></div>
+
+  <h2>Key permissions <span class="sub">read live from the chain</span></h2>
+  <div class="keys" id="keys"><div class="card empty">Loading...</div></div>
 
   <footer>
     <span id="roles"></span>
@@ -208,7 +221,49 @@ function render() {
   $("roles").textContent = `Owner ${cfg.owner} · Agent ${cfg.agent} · Guardian ${cfg.guardian}`;
   $("updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
   $("explorer").href = `https://testnet.nearblocks.io/address/${vault}`;
+  renderKeys(data.accessKeys, vault);
 }
+
+const CHECK = '<svg class="ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>';
+const CROSS = '<svg class="no" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+
+function renderKeys(list, vault) {
+  if (!list) { $("keys").innerHTML = '<div class="card empty">Could not read keys right now; retrying.</div>'; return; }
+  $("keys").innerHTML = list.map(({ role, accountId, keys }) => {
+    const full = keys.filter((k) => k.kind !== "function-call");
+    const scoped = keys.filter((k) => k.kind === "function-call");
+    const safe = full.length === 0 && scoped.every((k) => k.receiver === vault);
+    const lines = [
+      [full.length === 0, full.length === 0 ? "No full-access key: cannot transfer NEAR, add keys or delete the account" : `${full.length} full-access key(s) present`],
+      ...scoped.map((k) => [k.receiver === vault,
+        `Can only call ${k.methods.length ? k.methods.map((m) => `<code>${esc(m)}</code>`).join(", ") : "any method"} on <code>${esc(k.receiver)}</code>` +
+        (k.allowance ? `, gas budget ${near(k.allowance)} NEAR` : ", unlimited gas budget")]),
+    ];
+    return `<div class="card">
+      <div class="label">${esc(role)}</div>
+      <div class="acct" style="margin-top:2px">${esc(accountId)} <span class="badge ${safe ? "s-Executed" : "s-Rejected"}">${safe ? "Locked down" : "Review"}</span></div>
+      ${lines.map(([ok, text]) => `<div class="keyrow">${ok ? CHECK : CROSS}<span>${text}</span></div>`).join("")}
+      ${keys.map((k) => `<div class="pk">${esc(k.publicKey)}</div>`).join("")}
+    </div>`;
+  }).join("");
+}
+
+// Theme: follows the system until you pick one; the choice is remembered in this browser.
+const THEMES = ["auto", "light", "dark"];
+const ICON = { auto: "◐ Auto", light: "☀ Light", dark: "☾ Dark" };
+function applyTheme(t) {
+  if (t === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", t);
+  $("themeBtn").textContent = ICON[t];
+}
+let theme = "auto";
+try { theme = localStorage.getItem("ag-theme") || "auto"; } catch {}
+applyTheme(theme);
+$("themeBtn").onclick = () => {
+  theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+  try { localStorage.setItem("ag-theme", theme); } catch {}
+  applyTheme(theme);
+};
 
 function toast(html, err) {
   const t = $("toast");

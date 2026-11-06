@@ -4,13 +4,50 @@
 // with the owner's key from the near CLI keychain. Listens on 127.0.0.1 only.
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { call, config, loadAccount, type PaymentRequest, type Policy, view } from "./near.js";
+import { call, config, loadAccount, type PaymentRequest, type Policy, provider, view } from "./near.js";
 
 const PORT = Number(process.env.DASHBOARD_PORT ?? 3000);
 const CACHE_MS = 8_000; // free RPCs rate-limit: share one read across all browser refreshes
 const html = () => readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
 
 let cache: { at: number; data: unknown } | null = null;
+let keyCache: { at: number; data: unknown } | null = null;
+const KEY_CACHE_MS = 60_000; // keys rarely change
+
+interface KeyInfo {
+  publicKey: string;
+  kind: "full-access" | "function-call" | "other";
+  receiver?: string;
+  methods?: string[];
+  allowance?: string | null;
+}
+
+/** Reads the agent's and guardian's access keys straight from the chain. */
+async function keys() {
+  if (keyCache && Date.now() - keyCache.at < KEY_CACHE_MS) return keyCache.data;
+  const read = async (role: string, accountId: string) => {
+    const list = await provider.viewAccessKeyList({ accountId });
+    const out: KeyInfo[] = list.keys.map((k: any) => {
+      const perm = k.access_key.permission;
+      if (perm === "FullAccess") return { publicKey: k.public_key, kind: "full-access" };
+      if (perm?.FunctionCall) {
+        const fc = perm.FunctionCall;
+        return {
+          publicKey: k.public_key,
+          kind: "function-call",
+          receiver: fc.receiver_id,
+          methods: fc.method_names,
+          allowance: fc.allowance == null ? null : String(fc.allowance),
+        };
+      }
+      return { publicKey: k.public_key, kind: "other" };
+    });
+    return { role, accountId, keys: out };
+  };
+  const data = [await read("Agent", config.agent), await read("Guardian", config.guardian)];
+  keyCache = { at: Date.now(), data };
+  return data;
+}
 
 async function state() {
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.data;
@@ -18,7 +55,8 @@ async function state() {
   const spending = await view<{ spent_today: string; remaining_today: string; available_balance: string }>("get_spending");
   const requests = await view<PaymentRequest[]>("list_requests", { limit: 25 });
   const payees = await view<[string, string][]>("get_payees");
-  const data = { vault: config.vault, config: cfg, spending, requests, payees };
+  const accessKeys = await keys().catch(() => null); // panel is optional; never break the page over it
+  const data = { vault: config.vault, config: cfg, spending, requests, payees, accessKeys };
   cache = { at: Date.now(), data };
   return data;
 }

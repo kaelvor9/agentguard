@@ -124,10 +124,19 @@ impl Vault {
     /// The agent asks for a payment. Hard rules are checked immediately; anything that passes
     /// waits for the guardian's risk score. Returns the request id.
     pub fn request_payment(&mut self, to: AccountId, amount: NearToken, memo: String) -> U64 {
-        require!(env::predecessor_account_id() == self.agent, "Only the agent can request payments");
+        require!(
+            env::predecessor_account_id() == self.agent,
+            "Only the agent can request payments"
+        );
         require!(memo.len() <= MAX_MEMO_LEN, "Memo too long");
-        require!(amount.as_yoctonear() > 0, "Amount must be greater than zero");
-        require!(self.open_requests < MAX_OPEN_REQUESTS, "Too many open requests");
+        require!(
+            amount.as_yoctonear() > 0,
+            "Amount must be greater than zero"
+        );
+        require!(
+            self.open_requests < MAX_OPEN_REQUESTS,
+            "Too many open requests"
+        );
         self.roll_day();
 
         let id = self.requests.len() as u64;
@@ -170,13 +179,19 @@ impl Vault {
 
     /// The guardian posts the AI risk score. The vault applies the policy and pays or holds.
     pub fn submit_risk(&mut self, id: U64, score: u8, reason: String) -> Status {
-        require!(env::predecessor_account_id() == self.guardian, "Only the guardian can submit risk");
+        require!(
+            env::predecessor_account_id() == self.guardian,
+            "Only the guardian can submit risk"
+        );
         require!(score <= 100, "Score must be 0-100");
         require!(reason.len() <= MAX_REASON_LEN, "Reason too long");
         self.roll_day();
 
         let mut request = self.get_request_or_panic(id.0);
-        require!(request.status == Status::PendingRisk, "Request is not awaiting a risk score");
+        require!(
+            request.status == Status::PendingRisk,
+            "Request is not awaiting a risk score"
+        );
         request.risk_score = Some(score);
         request.risk_reason = Some(reason);
 
@@ -221,7 +236,10 @@ impl Vault {
         self.assert_owner();
         self.roll_day();
         let mut request = self.get_request_or_panic(id.0);
-        require!(request.status == Status::NeedsApproval, "Request is not awaiting approval");
+        require!(
+            request.status == Status::NeedsApproval,
+            "Request is not awaiting approval"
+        );
 
         if env::block_timestamp() > request.created_at.0 + APPROVAL_WINDOW_NS {
             request.status = Status::Expired;
@@ -229,7 +247,10 @@ impl Vault {
             self.open_requests -= 1;
             self.emit("payment_expired", &request);
         } else {
-            require!(request.amount <= self.available_balance(), "Insufficient vault balance");
+            require!(
+                request.amount <= self.available_balance(),
+                "Insufficient vault balance"
+            );
             request.status = Status::Executed;
             request.decision = Some("approved by owner".to_string());
             self.execute(&mut request);
@@ -279,14 +300,18 @@ impl Vault {
     pub fn pause(&mut self) {
         self.assert_owner();
         self.paused = true;
-        env::log_str("EVENT_JSON:{\"standard\":\"agentguard\",\"version\":\"1.0.0\",\"event\":\"paused\",\"data\":[]}");
+        env::log_str(
+            "EVENT_JSON:{\"standard\":\"agentguard\",\"version\":\"1.0.0\",\"event\":\"paused\",\"data\":[]}",
+        );
     }
 
     #[payable]
     pub fn unpause(&mut self) {
         self.assert_owner();
         self.paused = false;
-        env::log_str("EVENT_JSON:{\"standard\":\"agentguard\",\"version\":\"1.0.0\",\"event\":\"unpaused\",\"data\":[]}");
+        env::log_str(
+            "EVENT_JSON:{\"standard\":\"agentguard\",\"version\":\"1.0.0\",\"event\":\"unpaused\",\"data\":[]}",
+        );
     }
 
     /// Replace a compromised agent or guardian account.
@@ -306,7 +331,10 @@ impl Vault {
     #[payable]
     pub fn withdraw(&mut self, amount: NearToken) -> Promise {
         self.assert_owner();
-        require!(amount <= self.available_balance(), "Insufficient vault balance");
+        require!(
+            amount <= self.available_balance(),
+            "Insufficient vault balance"
+        );
         Promise::new(self.owner.clone()).transfer(amount)
     }
 
@@ -323,7 +351,10 @@ impl Vault {
     }
 
     pub fn get_payees(&self) -> Vec<(AccountId, String)> {
-        self.payees.iter().map(|(a, l)| (a.clone(), l.clone())).collect()
+        self.payees
+            .iter()
+            .map(|(a, l)| (a.clone(), l.clone()))
+            .collect()
     }
 
     pub fn get_request(&self, id: U64) -> Option<PaymentRequest> {
@@ -331,7 +362,11 @@ impl Vault {
     }
 
     /// Newest first. `from_index` counts back from the newest request.
-    pub fn list_requests(&self, from_index: Option<u32>, limit: Option<u32>) -> Vec<PaymentRequest> {
+    pub fn list_requests(
+        &self,
+        from_index: Option<u32>,
+        limit: Option<u32>,
+    ) -> Vec<PaymentRequest> {
         let len = self.requests.len();
         let skip = from_index.unwrap_or(0).min(len);
         let limit = limit.unwrap_or(20).min(100);
@@ -344,7 +379,11 @@ impl Vault {
 
     pub fn get_spending(&self) -> Spending {
         let today = env::block_timestamp() / NS_PER_DAY;
-        let spent = if today == self.day_index { self.spent_today } else { NearToken::from_yoctonear(0) };
+        let spent = if today == self.day_index {
+            self.spent_today
+        } else {
+            NearToken::from_yoctonear(0)
+        };
         Spending {
             spent_today: spent,
             remaining_today: self.policy.daily_limit.saturating_sub(spent),
@@ -356,13 +395,22 @@ impl Vault {
 
     fn assert_owner(&self) {
         assert_one_yocto();
-        require!(env::predecessor_account_id() == self.owner, "Only the owner can do this");
+        require!(
+            env::predecessor_account_id() == self.owner,
+            "Only the owner can do this"
+        );
     }
 
     fn validate_policy(policy: &Policy) {
-        require!(policy.risk_hold <= policy.risk_block, "risk_hold must be <= risk_block");
+        require!(
+            policy.risk_hold <= policy.risk_block,
+            "risk_hold must be <= risk_block"
+        );
         require!(policy.risk_block <= 100, "risk_block must be <= 100");
-        require!(policy.per_tx_limit <= policy.daily_limit, "per_tx_limit must be <= daily_limit");
+        require!(
+            policy.per_tx_limit <= policy.daily_limit,
+            "per_tx_limit must be <= daily_limit"
+        );
     }
 
     /// Resets the daily counter when a new UTC day starts.
@@ -384,7 +432,9 @@ impl Vault {
         self.spent_today = self.spent_today.saturating_add(request.amount);
         self.open_requests -= 1;
         self.emit("payment_executed", request);
-        Promise::new(request.to.clone()).transfer(request.amount).detach();
+        Promise::new(request.to.clone())
+            .transfer(request.amount)
+            .detach();
     }
 
     fn get_request_or_panic(&self, id: u64) -> PaymentRequest {

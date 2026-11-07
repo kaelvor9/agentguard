@@ -6,14 +6,18 @@ async fn full_flow(contract_wasm: Vec<u8>) -> testresult::TestResult<()> {
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let net = near_api::NetworkConfig::from_rpc_url("sandbox", sandbox.rpc_addr.parse()?);
     let signer = near_api::Signer::from_secret_key(
-        near_sandbox::config::DEFAULT_GENESIS_ACCOUNT_PRIVATE_KEY.parse().unwrap(),
+        near_sandbox::config::DEFAULT_GENESIS_ACCOUNT_PRIVATE_KEY
+            .parse()
+            .unwrap(),
     )?;
 
     let owner = create_account(&sandbox, "owner.sandbox", 10).await?;
     let agent = create_account(&sandbox, "agent.sandbox", 10).await?;
     let guardian = create_account(&sandbox, "guardian.sandbox", 10).await?;
     let shop = create_account(&sandbox, "shop.sandbox", 10).await?;
-    let vault = create_account(&sandbox, "vault.sandbox", 50).await?.as_contract();
+    let vault = create_account(&sandbox, "vault.sandbox", 50)
+        .await?
+        .as_contract();
 
     // Deploy + init in one transaction
     near_api::Contract::deploy(vault.account_id().clone())
@@ -40,7 +44,10 @@ async fn full_flow(contract_wasm: Vec<u8>) -> testresult::TestResult<()> {
 
     // Owner allowlists the shop (1 yoctoNEAR attached)
     vault
-        .call_function("add_payee", json!({"account": shop.account_id(), "label": "API credits"}))
+        .call_function(
+            "add_payee",
+            json!({"account": shop.account_id(), "label": "API credits"}),
+        )
         .transaction()
         .deposit(NearToken::from_yoctonear(1))
         .with_signer(owner.account_id().clone(), signer.clone())
@@ -65,7 +72,10 @@ async fn full_flow(contract_wasm: Vec<u8>) -> testresult::TestResult<()> {
 
     // The agent cannot score its own request
     vault
-        .call_function("submit_risk", json!({"id": "0", "score": 0, "reason": "trust me"}))
+        .call_function(
+            "submit_risk",
+            json!({"id": "0", "score": 0, "reason": "trust me"}),
+        )
         .transaction()
         .with_signer(agent.account_id().clone(), signer.clone())
         .send_to(&net)
@@ -74,7 +84,10 @@ async fn full_flow(contract_wasm: Vec<u8>) -> testresult::TestResult<()> {
 
     // Guardian scores it low -> vault pays
     vault
-        .call_function("submit_risk", json!({"id": "0", "score": 10, "reason": "known payee"}))
+        .call_function(
+            "submit_risk",
+            json!({"id": "0", "score": 10, "reason": "known payee"}),
+        )
         .transaction()
         .gas(NearGas::from_tgas(30))
         .with_signer(guardian.account_id().clone(), signer.clone())
@@ -91,7 +104,10 @@ async fn full_flow(contract_wasm: Vec<u8>) -> testresult::TestResult<()> {
     assert_eq!(request["status"], "Executed");
 
     let shop_after = shop.tokens().near_balance().fetch_from(&net).await?.total;
-    assert_eq!(shop_after, shop_before.saturating_add(NearToken::from_near(1)));
+    assert_eq!(
+        shop_after,
+        shop_before.saturating_add(NearToken::from_near(1))
+    );
 
     // A 50 NEAR request is rejected on the spot
     vault

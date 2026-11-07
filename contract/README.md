@@ -1,63 +1,19 @@
-# Basic Auction Contract 
+# AgentGuard vault contract
 
-This directory contains a Rust contract that is used as part of the [Basic Auction Tutorial](https://docs.near.org/tutorials/auction/basic-auction).
+Rust smart contract (near-sdk 5.29) that holds the funds and enforces the payment policy. See the [main README](../README.md) for the full design.
 
-The contract is a simple auction where you can place bids, view the highest bid, and claim the tokens at the end of the auction.
+| Method | Caller | Purpose |
+|--------|--------|---------|
+| `new(owner, agent, guardian, policy)` | the vault account itself (init) | Set roles and policy |
+| `request_payment(to, amount, memo) -> id` | agent | Ask for a payment; hard limits are checked immediately |
+| `submit_risk(id, score, reason) -> status` | guardian | Post the risk score; the vault pays, holds or rejects |
+| `approve(id)`, `reject(id)` | owner, 1 yoctoNEAR | Resolve a held payment |
+| `set_policy`, `add_payee`, `remove_payee`, `pause`, `unpause`, `set_agent`, `set_guardian`, `withdraw` | owner, 1 yoctoNEAR | Administration |
+| `get_config`, `get_payees`, `get_request`, `list_requests`, `get_spending` | anyone (view) | Read state |
 
-This repo showcases the basic anatomy of a smart contract application on NEAR Protocol that showcases how to store data in a contract, how to update the state, and then how to read it.
-There are also unit tests, integration tests, and CI/CD pipelines preconfigured for your reference.
+Amounts are in yoctoNEAR (1 NEAR = 10^24). Every status change is logged as a NEP-297 `EVENT_JSON` event with `standard: "agentguard"`.
 
----
-
-## How to Build Locally?
-
-Install [`cargo-near`](https://github.com/near/cargo-near) and run:
-
-```bash
-cargo near build
 ```
-
-## How to Test Locally?
-
-```bash
-cargo test
+cargo test                                   # 12 unit tests + 1 sandbox end-to-end test
+cargo near build non-reproducible-wasm       # build target/near/contract.wasm
 ```
-
-## How to Deploy?
-
-Deployment is automated with GitHub Actions CI/CD pipeline.
-To deploy manually, install [`cargo-near`](https://github.com/near/cargo-near) and run:
-
-If you deploy for debugging purposes:
-
-```bash
-cargo near deploy build-non-reproducible-wasm
-```
-
-If you deploy production ready smart contract:
-
-```bash
-cargo near deploy build-reproducible-wasm
-```
-
-## Initialize the contract
-
-```bash
-# on Linux / Windows WSL
-TWO_MINUTES_FROM_NOW=$(date -d '+2 minutes' +%s000000000)
-# on MacOS
-TWO_MINUTES_FROM_NOW=$(date -v+2M +%s000000000)
-
-near contract call-function as-transaction '<CONTRACT_ACCOUNT_ID>' init json-args '{"end_time": "'$TWO_MINUTES_FROM_NOW'", "auctioneer": "<AUCTIONEER_ACCOUNT_ID>"}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR'
-```
-
-## Useful Links
-
-- [cargo-near](https://github.com/near/cargo-near) - NEAR smart contract development toolkit for Rust
-- [near CLI](https://near.cli.rs) - Interact with NEAR blockchain from command line
-- [NEAR Rust SDK Documentation](https://docs.near.org/sdk/rust/introduction)
-- [NEAR Documentation](https://docs.near.org)
-- [NEAR StackOverflow](https://stackoverflow.com/questions/tagged/nearprotocol)
-- [NEAR Discord](https://near.chat)
-- [NEAR Telegram Developers Community Group](https://t.me/neardev)
-- NEAR DevHub: [Telegram](https://t.me/neardevhub), [Twitter](https://twitter.com/neardevhub)

@@ -11,7 +11,8 @@
     "owner": "tsx src/owner.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
-    "dashboard": "tsx src/dashboard.ts"
+    "dashboard": "tsx src/dashboard.ts",
+    "ai-check": "tsx src/ai-check.ts"
   },
   "dependencies": {
     "dotenv": "18.0.9",

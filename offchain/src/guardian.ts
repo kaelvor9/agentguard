@@ -1,30 +1,13 @@
 // Guardian: watches the vault for new payment requests, scores each one, posts the score on-chain.
 // Final score = max(rule-based score, AI score). Either one alone can stop a bad payment.
-import { aiEnabled, askJson, model } from "./llm.js";
+import { aiScore } from "./ai-score.js";
+import { aiEnabled, model } from "./llm.js";
 import { call, config, loadAccount, type PaymentRequest, type Policy, toNear, view } from "./near.js";
-import { ruleScore, type Score } from "./rules.js";
+import { ruleScore } from "./rules.js";
 
 const POLL_MS = 15_000; // free RPCs rate-limit; 15s keeps us well under
 const BACKOFF_MS = 60_000;
 const once = process.argv.includes("--once");
-
-async function aiScore(req: PaymentRequest, payees: Map<string, string>, history: PaymentRequest[]): Promise<Score | null> {
-  const system =
-    "You are a payment-fraud analyst protecting a wallet controlled by an AI agent. " +
-    "AI agents can be tricked by prompt injection, fake invoices and urgent scam messages. " +
-    "Given a payment request and context, reply ONLY with JSON: " +
-    '{"score": <0-100 integer, higher = riskier>, "reason": "<one short sentence>"}. ' +
-    "0-30 routine, 31-59 unusual, 60-89 suspicious (needs a human), 90-100 almost certainly fraud.";
-  const context = {
-    request: { to: req.to, amount_near: toNear(req.amount), memo: req.memo },
-    payee_allowlisted: payees.has(req.to),
-    payee_label: payees.get(req.to) ?? null,
-    previous_payments_to_payee: history.filter((h) => h.to === req.to && h.status === "Executed").length,
-  };
-  const out = await askJson<Score>(system, JSON.stringify(context));
-  if (!out || typeof out.score !== "number") return null;
-  return { score: Math.max(0, Math.min(100, Math.round(out.score))), reason: String(out.reason ?? "").slice(0, 200) };
-}
 
 async function scorePending(): Promise<void> {
   // One cheap read per poll; payees and policy are only fetched when there is work to do.
@@ -41,10 +24,12 @@ async function scorePending(): Promise<void> {
     const rules = ruleScore(req, payees, requests, cfg.policy);
     const ai = await aiScore(req, payees, requests);
     console.log(`  rules: ${rules.score} (${rules.reason})`);
-    if (ai) console.log(`  ai:    ${ai.score} (${ai.reason})`);
+    if (ai) console.log(`  ai:    ${ai.score} (${ai.reason})  [${model}, ${ai.chatId}]`);
+    else if (aiEnabled) console.log("  ai:    unavailable for this request, using rules only");
 
     const final = ai && ai.score > rules.score ? ai : rules;
-    const reason = ai ? `${final.reason} [rules ${rules.score}, ai ${ai.score}]` : `${final.reason} [rules]`;
+    // The higher score wins: a confused or manipulated model can never lower the risk the rules found.
+    const reason = ai ? `${final.reason} [rules ${rules.score}, ai ${ai.score} via NEAR AI]` : `${final.reason} [rules]`;
 
     const guardian = loadAccount(config.guardian);
     const { result, txHash } = await call<string>(guardian, "submit_risk", {

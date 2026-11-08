@@ -14,6 +14,10 @@ AI agents that pay for things usually hold a private key that can move all of th
 
 Banks solved this decades ago with transaction limits, approved beneficiaries, maker-checker approval and fraud scoring. AI wallets have none of it.
 
+## Why I built this
+
+I work in IT at a microfinance bank, where no single person can move customer money on their own: payments go through limits, approved beneficiaries and a second person's approval. AI agents are being given wallets with none of those controls. AgentGuard applies the same maker-checker discipline to AI agents, enforced on-chain.
+
 ## What AgentGuard does
 
 AgentGuard splits "deciding to pay" from "being able to pay":
@@ -73,6 +77,21 @@ flowchart LR
 | Named accounts and sub-accounts | `agent.`, `guardian.`, `vault.` under the owner | Readable roles the owner controls |
 | NEP-297 events | Every status change | Public, auditable trail of every decision |
 | near-api-js 7 | `offchain/` | Agent, guardian, owner tools and console |
+
+## How AgentGuard compares
+
+Spending limits for AI agents is an active area. The closest project on NEAR is [OutLayer Agent Custody](https://app.outlayer.ai/docs/agent-custody), a live custody service where a TEE checks the policy and signs for the agent. AgentGuard takes a different approach:
+
+| | OutLayer Agent Custody | AgentGuard |
+|---|---|---|
+| Where the policy is enforced | Inside the operator's TEE, before signing | In an on-chain smart contract, by NEAR consensus |
+| Spend counters | Supplied by its gateway; its docs note that concurrent requests can exceed cumulative limits | Kept in contract state, so concurrent requests can't exceed them |
+| Who you trust | The operator's TEE and gateway | No operator: open source and self-deployed; the agent is contained by protocol-level key restrictions |
+| Scam and prompt-injection screening | Not described in its docs | An independent guardian scores each payment's intent; the agent can't score itself |
+| Chains and tokens | Many chains via NEAR Intents; many tokens | NEAR testnet; native NEAR only |
+| Maturity | Live product | Hackathon prototype |
+
+OutLayer is the more complete product. AgentGuard's focus is guarantees that don't depend on trusting an operator, plus catching scams rather than only limit breaches.
 
 ---
 
@@ -202,6 +221,13 @@ npm run dashboard        # then open http://localhost:3000
 - The owner console runs locally and signs with the owner's key from the near CLI keychain. A production version would use NEAR Wallet Selector.
 - The guardian's red-flag rules are simple patterns. They catch the demo attacks, not every possible scam; the on-chain limits are the backstop.
 
+## Roadmap
+
+- Stablecoin payments (NEP-141, e.g. USDC) with per-token limits.
+- Cross-chain payouts through NEAR Intents and Chain Signatures, with the same on-chain policy in front.
+- Guardian running inside a TEE, with its attestation verified on-chain.
+- Owner console with NEAR Wallet Selector instead of a local key.
+
 ## Repository layout
 
 ```
@@ -218,6 +244,27 @@ offchain/            TypeScript tools (near-api-js 7)
   dashboard/         owner console page
   demo/inbox/        the five demo invoices
 ```
+
+## AI assistance and third-party code
+
+**How it was built.** Kaelvor chose the project and its banking-style control model, ran every build and test, deployed and operated the contract on testnet, set up and locked down all keys, and reviewed the code. Claude (Anthropic) worked as an AI pair programmer and wrote most of the code and documentation. All code was written during the hackathon window (Nov 2026). The contract started from the `cargo near new` template, which was fully replaced.
+
+**Libraries used**
+
+| Component | Library | Version | Purpose |
+|-----------|---------|---------|---------|
+| Contract | [near-sdk](https://crates.io/crates/near-sdk) | 5.29 | NEAR smart-contract SDK |
+| Contract tests | near-sandbox, near-api (Rust), cargo-near-build, tokio, testresult | see `contract/Cargo.toml` | Local sandbox end-to-end test |
+| Off-chain | [near-api-js](https://www.npmjs.com/package/near-api-js) | 7.4.0 | RPC reads, signing, transactions |
+| Off-chain | [openai](https://www.npmjs.com/package/openai) | 5.23.2 | Client for NEAR AI Cloud's OpenAI-compatible API |
+| Off-chain | [dotenv](https://www.npmjs.com/package/dotenv) | 18.0.9 | Loads `.env` settings |
+| Dev tools | tsx, typescript, @types/node | see `offchain/package.json` | Run and type-check TypeScript |
+
+The owner console page uses no front-end libraries.
+
+## License
+
+[MIT](LICENSE)
 
 ## Built by
 

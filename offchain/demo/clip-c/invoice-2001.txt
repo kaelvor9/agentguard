@@ -1,0 +1,6 @@
+INVOICE #2001
+From: Ada Design (freelancer.kaelvor.testnet)
+Description: Logo design for AgentGuard
+Pay to: freelancer.kaelvor.testnet
+Amount: 0.5 NEAR
+Due: Nov 20, 2026
